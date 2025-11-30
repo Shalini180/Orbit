@@ -4,6 +4,9 @@ import { useWarpDrive } from './hooks/useWarpDrive';
 import { useGamification } from './hooks/useGamification';
 import { useCaptainsLog } from './hooks/useCaptainsLog';
 import { useAudioSystem } from './hooks/useAudioSystem';
+import { useHyperdrive } from './hooks/useHyperdrive';
+import { ThemeProvider } from './hooks/useTheme';
+
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
 import SingularityGoal from './components/SingularityGoal';
@@ -12,8 +15,12 @@ import JettisonControl from './components/JettisonControl';
 import XPHUD from './components/XPHUD';
 import MissionLog from './components/MissionLog';
 import LevelUpModal from './components/LevelUpModal';
+import HyperdriveHUD from './components/HyperdriveHUD';
+import TheArmory from './components/TheArmory';
+import DataTerminal from './components/DataTerminal';
+
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -29,15 +36,48 @@ const Toast = ({ message, onComplete }) => (
   </motion.div>
 );
 
-function App() {
+function OrbitrApp() {
   const { state, actions } = useOrbitEngine();
   const velocity = useWarpDrive(state);
   const { xpState, addXP, levelUpEvent, clearLevelUpEvent, progress, XP_TABLE } = useGamification();
   const { history, logDailyActivity } = useCaptainsLog();
   const { isEnabled: audioEnabled, toggleAudio, playHover, playComplete, playWarp, playLevelUp } = useAudioSystem();
 
+  // Hyperdrive
+  const hyperdrive = useHyperdrive((mode) => {
+    if (mode === 'FOCUS') {
+      playComplete();
+      showToast('HYPERDRIVE CYCLE COMPLETE');
+      addXP(50); // Small bonus for finishing a timer
+    }
+  });
+
   const [toasts, setToasts] = useState([]);
+  const [showArmory, setShowArmory] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
+
   const isLocked = state.status !== 'IDLE';
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && isLocked && !state.heavyLift.completed) {
+        // Only toggle if not typing in an input
+        if (document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          if (hyperdrive.isActive) hyperdrive.actions.pause();
+          else hyperdrive.actions.start();
+        }
+      }
+      if (e.code === 'Escape') {
+        if (hyperdrive.isActive) hyperdrive.actions.stop();
+        setShowArmory(false);
+        setShowTerminal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, hyperdrive, state.heavyLift.completed]);
 
   // Handle XP and Audio triggers
   const handleHeavyLiftToggle = () => {
@@ -102,17 +142,34 @@ function App() {
   }, [levelUpEvent, playLevelUp]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-[var(--color-bg)] transition-colors duration-1000">
       {/* Visual Engine */}
-      <StarfieldCanvas velocity={velocity} />
+      <StarfieldCanvas velocity={hyperdrive.isActive ? 5 : velocity} />
 
-      {/* Audio Toggle */}
-      <button
-        onClick={toggleAudio}
-        className="fixed top-4 left-4 z-30 text-slate-500 hover:text-cyan-400 transition-colors"
-      >
-        {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-      </button>
+      {/* Top Controls */}
+      <div className="fixed top-4 left-4 z-30 flex gap-4">
+        <button
+          onClick={toggleAudio}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="Toggle Audio"
+        >
+          {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+        </button>
+        <button
+          onClick={() => setShowTerminal(true)}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="Data Terminal"
+        >
+          <Disc size={20} />
+        </button>
+        <button
+          onClick={() => setShowArmory(true)}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="The Armory"
+        >
+          <Settings size={20} />
+        </button>
+      </div>
 
       {/* HUD Layer */}
       <XPHUD
@@ -131,7 +188,7 @@ function App() {
         </AnimatePresence>
 
         {/* Header / Identity */}
-        <div onMouseEnter={playHover}>
+        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
           <IdentityLock
             identity={state.identity}
             setIdentity={actions.setIdentity}
@@ -141,7 +198,7 @@ function App() {
         </div>
 
         {/* Main Task (The Heavy Lift) */}
-        <div onMouseEnter={playHover}>
+        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
           <SingularityGoal
             goal={state.heavyLift}
             setGoal={actions.setHeavyLift}
@@ -150,8 +207,20 @@ function App() {
           />
         </div>
 
+        {/* Hyperdrive Controls (Only visible when locked and not active) */}
+        {isLocked && !hyperdrive.isActive && !state.heavyLift.completed && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={hyperdrive.actions.start}
+            className="mb-8 px-6 py-2 rounded-full border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-black font-mono tracking-widest uppercase text-sm transition-all"
+          >
+            Engage Hyperdrive
+          </motion.button>
+        )}
+
         {/* Secondary Tasks (Thrusters) */}
-        <div onMouseEnter={playHover}>
+        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-0 pointer-events-none transition-all' : 'transition-all'}>
           <ThrusterBank
             thrusters={state.thrusters}
             setThruster={actions.setThruster}
@@ -162,7 +231,9 @@ function App() {
       </div>
 
       {/* Mission Log (Heatmap) */}
-      <MissionLog history={history} isLocked={isLocked} />
+      <div className={hyperdrive.isActive ? 'opacity-0 transition-all' : 'transition-all'}>
+        <MissionLog history={history} isLocked={isLocked} />
+      </div>
 
       {/* Controls */}
       <JettisonControl
@@ -170,17 +241,39 @@ function App() {
         isLocked={isLocked}
       />
 
-      {/* Level Up Modal */}
+      {/* Overlays */}
       <LevelUpModal
         level={levelUpEvent}
         onClose={clearLevelUpEvent}
+      />
+
+      <HyperdriveHUD
+        isActive={hyperdrive.isActive}
+        mode={hyperdrive.mode}
+        timeLeft={hyperdrive.timeLeft}
+        progress={hyperdrive.progress}
+        onStart={hyperdrive.actions.start}
+        onPause={hyperdrive.actions.pause}
+        onStop={hyperdrive.actions.stop}
+        activeTask={state.heavyLift.text}
+      />
+
+      <TheArmory
+        isOpen={showArmory}
+        onClose={() => setShowArmory(false)}
+        userLevel={xpState.level}
+      />
+
+      <DataTerminal
+        isOpen={showTerminal}
+        onClose={() => setShowTerminal(false)}
       />
 
       {/* Ambient Overlay for Warp Speed */}
       <div
         className={`
           fixed inset-0 pointer-events-none transition-opacity duration-1000
-          bg-gradient-to-b from-fuchsia-900/10 to-transparent
+          bg-gradient-to-b from-[var(--color-accent)]/10 to-transparent
           ${state.status === 'WARP' ? 'opacity-100' : 'opacity-0'}
         `}
       />
@@ -188,4 +281,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <OrbitrApp />
+    </ThemeProvider>
+  );
+}
