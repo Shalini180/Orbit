@@ -15,6 +15,9 @@ import { useSubspace } from './hooks/useSubspace';
 import { useSeasons } from './hooks/useSeasons';
 import { useMedals } from './hooks/useMedals';
 import { usePrestige } from './hooks/usePrestige';
+import { useNotifications } from './hooks/useNotifications';
+import { useDamage } from './hooks/useDamage';
+import { useJournal } from './hooks/useJournal';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -42,9 +45,13 @@ import IncomingTransmission from './components/IncomingTransmission';
 import SeasonTrack from './components/SeasonTrack';
 import MedalCase from './components/MedalCase';
 import PrestigeCeremony from './components/PrestigeCeremony';
+import ConsistencyGraph from './components/ConsistencyGraph';
+import ImpactPredictor from './components/ImpactPredictor';
+import LogTerminal from './components/LogTerminal';
+import BootSequence from './components/BootSequence';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX, Settings, Disc, Wifi, Users, Server, Award } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc, Wifi, Users, Server, Award, Bell, FileText } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -93,11 +100,11 @@ function OrbitrApp() {
   // Phase 8 Hooks
   const seasons = useSeasons(xpState.level);
 
-  // Mock stats for medals (in a real app, these would come from useCaptainsLog or similar)
+  // Mock stats for medals
   const stats = {
-    streak: history.length > 0 ? history[history.length - 1].streak : 0, // Simplified
-    totalFocusHours: 0, // Placeholder
-    bountiesCompleted: 0, // Placeholder
+    streak: history.length > 0 ? history[history.length - 1].streak : 0,
+    totalFocusHours: 0,
+    bountiesCompleted: 0,
     prestigeCount: parseInt(localStorage.getItem('orbit_prestige_count') || '0')
   };
   const medals = useMedals(stats, showToast);
@@ -110,6 +117,13 @@ function OrbitrApp() {
   };
 
   const prestige = usePrestige(xpState.level, handlePrestigeReset);
+
+  // Phase 9 Hooks
+  const allTasks = [state.heavyLift, ...state.thrusters];
+  const notifications = useNotifications(allTasks);
+  const damage = useDamage(allTasks);
+  const journal = useJournal();
+  const [isBooting, setIsBooting] = useState(true);
 
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
@@ -138,6 +152,9 @@ function OrbitrApp() {
   const [showDockingBay, setShowDockingBay] = useState(false);
   const [showMedalCase, setShowMedalCase] = useState(false);
   const [showPrestigeCeremony, setShowPrestigeCeremony] = useState(false);
+  const [showImpact, setShowImpact] = useState(false);
+  const [showJournal, setShowJournal] = useState(false);
+  const [journalMode, setJournalMode] = useState('LAUNCH');
 
   const isLocked = state.status !== 'IDLE';
 
@@ -159,6 +176,7 @@ function OrbitrApp() {
         setShowAlliance(false);
         setShowDockingBay(false);
         setShowMedalCase(false);
+        setShowJournal(false);
         cortex.setShowBriefing(false);
       }
     };
@@ -206,6 +224,16 @@ function OrbitrApp() {
     cortex.processInput(text);
   };
 
+  const handleJournalSave = (data) => {
+    journal.addEntry(journalMode, data);
+    showToast(`${journalMode} LOG SAVED`);
+  };
+
+  const handleConvertToTask = (text) => {
+    actions.setThruster(state.thrusters.length, text);
+    showToast('SIDE THRUSTER ADDED');
+  };
+
   useEffect(() => {
     if (isLocked) {
       const completedTasks = (state.heavyLift.completed ? 1 : 0) +
@@ -226,8 +254,39 @@ function OrbitrApp() {
     }
   }, [levelUpEvent, playLevelUp]);
 
+  // Request notification permission on first interaction
+  useEffect(() => {
+    if (isLocked && notifications.permission === 'default') {
+      notifications.requestPermission();
+    }
+  }, [isLocked, notifications]);
+
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-[var(--color-bg)] transition-colors duration-1000 pb-24 md:pb-4">
+    <div className={`min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000 pb-24 md:pb-4 ${damage.damageLevel === 'CRITICAL' ? 'bg-red-950 animate-pulse' : 'bg-[var(--color-bg)]'
+      }`}>
+
+      <AnimatePresence>
+        {isBooting && (
+          <BootSequence
+            onComplete={() => setIsBooting(false)}
+            themeName={theme.name}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Screen Shake Effect */}
+      <AnimatePresence>
+        {damage.shake && (
+          <motion.div
+            className="absolute inset-0 z-50 pointer-events-none border-4 border-red-500"
+            initial={{ x: -10 }}
+            animate={{ x: 10 }}
+            exit={{ x: 0 }}
+            transition={{ repeat: 5, duration: 0.05 }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Visual Engine */}
       <StarfieldCanvas velocity={hyperdrive.isActive ? 5 : velocity} />
 
@@ -248,9 +307,19 @@ function OrbitrApp() {
           <Disc size={20} />
         </button>
         <button
+          onClick={() => {
+            setJournalMode('LAUNCH');
+            setShowJournal(true);
+          }}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="Captain's Log"
+        >
+          <FileText size={20} />
+        </button>
+        <button
           onClick={() => setShowComms(true)}
           className={`transition-colors ${holonet.status === 'SYNCED' ? 'text-green-500' :
-              holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+            holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
             }`}
           title="Comms Panel"
         >
@@ -284,6 +353,14 @@ function OrbitrApp() {
           title="The Armory"
         >
           <Settings size={20} />
+        </button>
+        <button
+          onClick={notifications.requestPermission}
+          className={`transition-colors ${notifications.permission === 'granted' ? 'text-green-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+            }`}
+          title="Notifications"
+        >
+          <Bell size={20} />
         </button>
       </div>
 
@@ -361,10 +438,23 @@ function OrbitrApp() {
         <MissionLog history={history} isLocked={isLocked} />
       </div>
 
-      <JettisonControl
-        onJettison={actions.jettison}
-        isLocked={isLocked}
-      />
+      <div className="relative" onMouseEnter={() => setShowImpact(true)} onMouseLeave={() => setShowImpact(false)}>
+        <ImpactPredictor
+          isOpen={showImpact && isLocked}
+          consequences={[
+            "Break 12-day Streak",
+            "Reduce Hull Integrity by 15%",
+            "Lock 'Veteran' Badge for 7 days"
+          ]}
+        />
+        <JettisonControl
+          onJettison={() => {
+            damage.triggerShake();
+            actions.jettison();
+          }}
+          isLocked={isLocked}
+        />
+      </div>
 
       <LevelUpModal
         level={levelUpEvent}
@@ -391,6 +481,19 @@ function OrbitrApp() {
       <DataTerminal
         isOpen={showTerminal}
         onClose={() => setShowTerminal(false)}
+      >
+        <div className="mt-8">
+          <ConsistencyGraph />
+        </div>
+      </DataTerminal>
+
+      <LogTerminal
+        isOpen={showJournal}
+        onClose={() => setShowJournal(false)}
+        mode={journalMode}
+        template={journal.TEMPLATES[journalMode]}
+        onSave={handleJournalSave}
+        onConvertToTask={handleConvertToTask}
       />
 
       <CommsPanel
