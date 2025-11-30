@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-cyan-400 overflow-hidden;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom scrollbar if needed, or other global resets */
