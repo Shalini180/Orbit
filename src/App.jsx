@@ -10,6 +10,7 @@ import { useHolonet } from './hooks/useHolonet';
 import { useTouchOps } from './hooks/useTouchOps';
 import { useFleet } from './hooks/useFleet';
 import { useRadar } from './hooks/useRadar';
+import { useCortex } from './hooks/useCortex';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -28,6 +29,9 @@ import InstallBeacon from './components/InstallBeacon';
 import AllianceHall from './components/AllianceHall';
 import RadarScope from './components/RadarScope';
 import WingComms from './components/WingComms';
+import NavCore from './components/NavCore';
+import TacticalBriefing from './components/TacticalBriefing';
+import VoiceComms from './components/VoiceComms';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Volume2, VolumeX, Settings, Disc, Wifi, Users } from 'lucide-react';
@@ -60,6 +64,9 @@ function OrbitrApp() {
   // Phase 5 Hooks
   const fleet = useFleet(holonet.user);
   const radar = useRadar(holonet.user, fleet.wing);
+
+  // Phase 6 Hooks
+  const cortex = useCortex(history, actions.setHeavyLift, actions.setThruster);
 
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
@@ -105,11 +112,12 @@ function OrbitrApp() {
         setShowTerminal(false);
         setShowComms(false);
         setShowAlliance(false);
+        cortex.setShowBriefing(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLocked, hyperdrive, state.heavyLift.completed]);
+  }, [isLocked, hyperdrive, state.heavyLift.completed, cortex]);
 
   // Handle XP and Audio triggers
   const handleHeavyLiftToggle = () => {
@@ -157,6 +165,10 @@ function OrbitrApp() {
     vibrate(10);
     showToast(`PING TRANSMITTED TO PILOT ${uid.slice(0, 4)}`);
     // In a real app, this would write to a 'notifications' collection
+  };
+
+  const handleVoiceInput = (text) => {
+    cortex.processInput(text);
   };
 
   // Log history when tasks change
@@ -255,12 +267,19 @@ function OrbitrApp() {
 
         {/* Main Task (The Heavy Lift) */}
         <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
-          <SingularityGoal
-            goal={state.heavyLift}
-            setGoal={actions.setHeavyLift}
-            toggleGoal={handleHeavyLiftToggle}
-            isLocked={isLocked}
-          />
+          <div className="relative w-full">
+            <SingularityGoal
+              goal={state.heavyLift}
+              setGoal={actions.setHeavyLift}
+              toggleGoal={handleHeavyLiftToggle}
+              isLocked={isLocked}
+            />
+            {!isLocked && (
+              <div className="absolute right-[-40px] top-1/2 -translate-y-1/2">
+                <VoiceComms onInput={handleVoiceInput} />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Hyperdrive Controls (Only visible when locked and not active) */}
@@ -336,6 +355,18 @@ function OrbitrApp() {
         onClose={() => setShowAlliance(false)}
         fleet={fleet}
         user={holonet.user}
+      />
+
+      <TacticalBriefing
+        isOpen={cortex.showBriefing}
+        onClose={() => cortex.setShowBriefing(false)}
+        content={cortex.weeklyReview}
+      />
+
+      <NavCore
+        status={cortex.status}
+        message={cortex.message}
+        onInput={cortex.processInput}
       />
 
       {fleet.wing && (
