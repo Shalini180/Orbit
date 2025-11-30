@@ -8,6 +8,8 @@ import { useHyperdrive } from './hooks/useHyperdrive';
 import { ThemeProvider } from './hooks/useTheme';
 import { useHolonet } from './hooks/useHolonet';
 import { useTouchOps } from './hooks/useTouchOps';
+import { useFleet } from './hooks/useFleet';
+import { useRadar } from './hooks/useRadar';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -23,9 +25,12 @@ import DataTerminal from './components/DataTerminal';
 import CommsPanel from './components/CommsPanel';
 import MobileFlightDeck from './components/MobileFlightDeck';
 import InstallBeacon from './components/InstallBeacon';
+import AllianceHall from './components/AllianceHall';
+import RadarScope from './components/RadarScope';
+import WingComms from './components/WingComms';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX, Settings, Disc, Wifi } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc, Wifi, Users } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -52,6 +57,10 @@ function OrbitrApp() {
   const holonet = useHolonet(state, actions.setIdentity); // Passing state for sync (simplified)
   const { isMobile, vibrate } = useTouchOps();
 
+  // Phase 5 Hooks
+  const fleet = useFleet(holonet.user);
+  const radar = useRadar(holonet.user, fleet.wing);
+
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
     if (mode === 'FOCUS') {
@@ -61,10 +70,22 @@ function OrbitrApp() {
     }
   });
 
+  // Update Status for Radar
+  useEffect(() => {
+    if (hyperdrive.isActive) {
+      radar.updateStatus('HYPERDRIVE');
+    } else if (state.status !== 'IDLE') {
+      radar.updateStatus('ACTIVE');
+    } else {
+      radar.updateStatus('IDLE');
+    }
+  }, [hyperdrive.isActive, state.status, radar.updateStatus]);
+
   const [toasts, setToasts] = useState([]);
   const [showArmory, setShowArmory] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showComms, setShowComms] = useState(false);
+  const [showAlliance, setShowAlliance] = useState(false);
 
   const isLocked = state.status !== 'IDLE';
 
@@ -83,6 +104,7 @@ function OrbitrApp() {
         setShowArmory(false);
         setShowTerminal(false);
         setShowComms(false);
+        setShowAlliance(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -131,6 +153,12 @@ function OrbitrApp() {
     }, 2000);
   };
 
+  const handlePing = (uid) => {
+    vibrate(10);
+    showToast(`PING TRANSMITTED TO PILOT ${uid.slice(0, 4)}`);
+    // In a real app, this would write to a 'notifications' collection
+  };
+
   // Log history when tasks change
   useEffect(() => {
     if (isLocked) {
@@ -177,11 +205,18 @@ function OrbitrApp() {
         <button
           onClick={() => setShowComms(true)}
           className={`transition-colors ${holonet.status === 'SYNCED' ? 'text-green-500' :
-              holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+            holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
             }`}
           title="Comms Panel"
         >
           <Wifi size={20} />
+        </button>
+        <button
+          onClick={() => setShowAlliance(true)}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="Alliance Hall"
+        >
+          <Users size={20} />
         </button>
         <button
           onClick={() => setShowArmory(true)}
@@ -295,6 +330,25 @@ function OrbitrApp() {
         onClose={() => setShowComms(false)}
         holonet={holonet}
       />
+
+      <AllianceHall
+        isOpen={showAlliance}
+        onClose={() => setShowAlliance(false)}
+        fleet={fleet}
+        user={holonet.user}
+      />
+
+      {fleet.wing && (
+        <>
+          <RadarScope
+            squadStatus={radar.squadStatus}
+            onPing={handlePing}
+          />
+          <WingComms
+            feed={[]} // Placeholder for now
+          />
+        </>
+      )}
 
       {/* Mobile-specific components */}
       {isMobile && (
