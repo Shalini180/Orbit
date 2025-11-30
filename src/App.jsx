@@ -11,6 +11,7 @@ import { useTouchOps } from './hooks/useTouchOps';
 import { useFleet } from './hooks/useFleet';
 import { useRadar } from './hooks/useRadar';
 import { useCortex } from './hooks/useCortex';
+import { useSubspace } from './hooks/useSubspace';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -32,9 +33,12 @@ import WingComms from './components/WingComms';
 import NavCore from './components/NavCore';
 import TacticalBriefing from './components/TacticalBriefing';
 import VoiceComms from './components/VoiceComms';
+import DockingBay from './components/DockingBay';
+import TimelineHorizon from './components/TimelineHorizon';
+import IncomingTransmission from './components/IncomingTransmission';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX, Settings, Disc, Wifi, Users } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc, Wifi, Users, Server } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -58,7 +62,7 @@ function OrbitrApp() {
   const { isEnabled: audioEnabled, toggleAudio, playHover, playComplete, playWarp, playLevelUp } = useAudioSystem();
 
   // Phase 4 Hooks
-  const holonet = useHolonet(state, actions.setIdentity); // Passing state for sync (simplified)
+  const holonet = useHolonet(state, actions.setIdentity);
   const { isMobile, vibrate } = useTouchOps();
 
   // Phase 5 Hooks
@@ -67,6 +71,17 @@ function OrbitrApp() {
 
   // Phase 6 Hooks
   const cortex = useCortex(history, actions.setHeavyLift, actions.setThruster);
+
+  // Phase 7 Hooks
+  const [toasts, setToasts] = useState([]);
+  const showToast = (msg) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 2000);
+  };
+  const subspace = useSubspace(addXP, showToast);
 
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
@@ -88,11 +103,11 @@ function OrbitrApp() {
     }
   }, [hyperdrive.isActive, state.status, radar.updateStatus]);
 
-  const [toasts, setToasts] = useState([]);
   const [showArmory, setShowArmory] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showComms, setShowComms] = useState(false);
   const [showAlliance, setShowAlliance] = useState(false);
+  const [showDockingBay, setShowDockingBay] = useState(false);
 
   const isLocked = state.status !== 'IDLE';
 
@@ -112,6 +127,7 @@ function OrbitrApp() {
         setShowTerminal(false);
         setShowComms(false);
         setShowAlliance(false);
+        setShowDockingBay(false);
         cortex.setShowBriefing(false);
       }
     };
@@ -119,18 +135,15 @@ function OrbitrApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLocked, hyperdrive, state.heavyLift.completed, cortex]);
 
-  // Handle XP and Audio triggers
   const handleHeavyLiftToggle = () => {
     actions.toggleHeavyLift();
     if (!state.heavyLift.completed) {
-      // Completing
       addXP(XP_TABLE.HEAVY_LIFT);
       playComplete();
       playWarp();
       vibrate(50); // Haptic
       showToast(`+${XP_TABLE.HEAVY_LIFT} XP`);
 
-      // Check for board clear bonus
       const allThrustersDone = state.thrusters.every(t => t.completed);
       if (allThrustersDone) {
         setTimeout(() => {
@@ -153,25 +166,15 @@ function OrbitrApp() {
     }
   };
 
-  const showToast = (msg) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, msg }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 2000);
-  };
-
   const handlePing = (uid) => {
     vibrate(10);
     showToast(`PING TRANSMITTED TO PILOT ${uid.slice(0, 4)}`);
-    // In a real app, this would write to a 'notifications' collection
   };
 
   const handleVoiceInput = (text) => {
     cortex.processInput(text);
   };
 
-  // Log history when tasks change
   useEffect(() => {
     if (isLocked) {
       const completedTasks = (state.heavyLift.completed ? 1 : 0) +
@@ -186,7 +189,6 @@ function OrbitrApp() {
     }
   }, [state, isLocked, logDailyActivity, xpState.totalXP]);
 
-  // Play Level Up Sound
   useEffect(() => {
     if (levelUpEvent) {
       playLevelUp();
@@ -217,7 +219,7 @@ function OrbitrApp() {
         <button
           onClick={() => setShowComms(true)}
           className={`transition-colors ${holonet.status === 'SYNCED' ? 'text-green-500' :
-            holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+              holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
             }`}
           title="Comms Panel"
         >
@@ -229,6 +231,14 @@ function OrbitrApp() {
           title="Alliance Hall"
         >
           <Users size={20} />
+        </button>
+        <button
+          onClick={() => setShowDockingBay(true)}
+          className={`transition-colors ${Object.values(subspace.connections).some(Boolean) ? 'text-green-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+            }`}
+          title="The Docking Bay"
+        >
+          <Server size={20} />
         </button>
         <button
           onClick={() => setShowArmory(true)}
@@ -248,14 +258,12 @@ function OrbitrApp() {
       />
 
       <div className="z-10 w-full max-w-4xl flex flex-col items-center relative">
-        {/* Toasts Container */}
         <AnimatePresence>
           {toasts.map(toast => (
             <Toast key={toast.id} message={toast.msg} />
           ))}
         </AnimatePresence>
 
-        {/* Header / Identity */}
         <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
           <IdentityLock
             identity={state.identity}
@@ -265,7 +273,6 @@ function OrbitrApp() {
           />
         </div>
 
-        {/* Main Task (The Heavy Lift) */}
         <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
           <div className="relative w-full">
             <SingularityGoal
@@ -282,7 +289,6 @@ function OrbitrApp() {
           </div>
         </div>
 
-        {/* Hyperdrive Controls (Only visible when locked and not active) */}
         {isLocked && !hyperdrive.isActive && !state.heavyLift.completed && (
           <motion.button
             initial={{ opacity: 0 }}
@@ -294,7 +300,6 @@ function OrbitrApp() {
           </motion.button>
         )}
 
-        {/* Secondary Tasks (Thrusters) */}
         <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-0 pointer-events-none transition-all' : 'transition-all'}>
           <ThrusterBank
             thrusters={state.thrusters}
@@ -305,18 +310,15 @@ function OrbitrApp() {
         </div>
       </div>
 
-      {/* Mission Log (Heatmap) */}
       <div className={hyperdrive.isActive ? 'opacity-0 transition-all' : 'transition-all'}>
         <MissionLog history={history} isLocked={isLocked} />
       </div>
 
-      {/* Controls */}
       <JettisonControl
         onJettison={actions.jettison}
         isLocked={isLocked}
       />
 
-      {/* Overlays */}
       <LevelUpModal
         level={levelUpEvent}
         onClose={clearLevelUpEvent}
@@ -357,6 +359,18 @@ function OrbitrApp() {
         user={holonet.user}
       />
 
+      <DockingBay
+        isOpen={showDockingBay}
+        onClose={() => setShowDockingBay(false)}
+        connections={subspace.connections}
+        onToggle={subspace.toggleConnection}
+      />
+
+      <IncomingTransmission
+        data={subspace.incomingTransmission}
+        onClear={subspace.clearTransmission}
+      />
+
       <TacticalBriefing
         isOpen={cortex.showBriefing}
         onClose={() => cortex.setShowBriefing(false)}
@@ -381,7 +395,11 @@ function OrbitrApp() {
         </>
       )}
 
-      {/* Mobile-specific components */}
+      {/* Timeline Horizon (Desktop Footer) */}
+      {!isMobile && (
+        <TimelineHorizon events={subspace.timelineEvents} />
+      )}
+
       {isMobile && (
         <MobileFlightDeck
           onOpenStats={() => setShowTerminal(true)}
@@ -394,7 +412,6 @@ function OrbitrApp() {
 
       <InstallBeacon />
 
-      {/* Ambient Overlay for Warp Speed */}
       <div
         className={`
           fixed inset-0 pointer-events-none transition-opacity duration-1000
