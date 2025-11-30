@@ -6,6 +6,8 @@ import { useCaptainsLog } from './hooks/useCaptainsLog';
 import { useAudioSystem } from './hooks/useAudioSystem';
 import { useHyperdrive } from './hooks/useHyperdrive';
 import { ThemeProvider } from './hooks/useTheme';
+import { useHolonet } from './hooks/useHolonet';
+import { useTouchOps } from './hooks/useTouchOps';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -18,9 +20,12 @@ import LevelUpModal from './components/LevelUpModal';
 import HyperdriveHUD from './components/HyperdriveHUD';
 import TheArmory from './components/TheArmory';
 import DataTerminal from './components/DataTerminal';
+import CommsPanel from './components/CommsPanel';
+import MobileFlightDeck from './components/MobileFlightDeck';
+import InstallBeacon from './components/InstallBeacon';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX, Settings, Disc } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc, Wifi } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -43,18 +48,23 @@ function OrbitrApp() {
   const { history, logDailyActivity } = useCaptainsLog();
   const { isEnabled: audioEnabled, toggleAudio, playHover, playComplete, playWarp, playLevelUp } = useAudioSystem();
 
+  // Phase 4 Hooks
+  const holonet = useHolonet(state, actions.setIdentity); // Passing state for sync (simplified)
+  const { isMobile, vibrate } = useTouchOps();
+
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
     if (mode === 'FOCUS') {
       playComplete();
       showToast('HYPERDRIVE CYCLE COMPLETE');
-      addXP(50); // Small bonus for finishing a timer
+      addXP(50);
     }
   });
 
   const [toasts, setToasts] = useState([]);
   const [showArmory, setShowArmory] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
+  const [showComms, setShowComms] = useState(false);
 
   const isLocked = state.status !== 'IDLE';
 
@@ -62,7 +72,6 @@ function OrbitrApp() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space' && isLocked && !state.heavyLift.completed) {
-        // Only toggle if not typing in an input
         if (document.activeElement.tagName !== 'INPUT') {
           e.preventDefault();
           if (hyperdrive.isActive) hyperdrive.actions.pause();
@@ -73,6 +82,7 @@ function OrbitrApp() {
         if (hyperdrive.isActive) hyperdrive.actions.stop();
         setShowArmory(false);
         setShowTerminal(false);
+        setShowComms(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -87,6 +97,7 @@ function OrbitrApp() {
       addXP(XP_TABLE.HEAVY_LIFT);
       playComplete();
       playWarp();
+      vibrate(50); // Haptic
       showToast(`+${XP_TABLE.HEAVY_LIFT} XP`);
 
       // Check for board clear bonus
@@ -107,6 +118,7 @@ function OrbitrApp() {
     if (!thruster.completed) {
       addXP(XP_TABLE.THRUSTER);
       playComplete();
+      vibrate(10); // Haptic
       showToast(`+${XP_TABLE.THRUSTER} XP`);
     }
   };
@@ -142,12 +154,12 @@ function OrbitrApp() {
   }, [levelUpEvent, playLevelUp]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-[var(--color-bg)] transition-colors duration-1000">
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 bg-[var(--color-bg)] transition-colors duration-1000 pb-24 md:pb-4">
       {/* Visual Engine */}
       <StarfieldCanvas velocity={hyperdrive.isActive ? 5 : velocity} />
 
-      {/* Top Controls */}
-      <div className="fixed top-4 left-4 z-30 flex gap-4">
+      {/* Top Controls (Desktop) */}
+      <div className="fixed top-4 left-4 z-30 hidden md:flex gap-4">
         <button
           onClick={toggleAudio}
           className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
@@ -161,6 +173,15 @@ function OrbitrApp() {
           title="Data Terminal"
         >
           <Disc size={20} />
+        </button>
+        <button
+          onClick={() => setShowComms(true)}
+          className={`transition-colors ${holonet.status === 'SYNCED' ? 'text-green-500' :
+              holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
+            }`}
+          title="Comms Panel"
+        >
+          <Wifi size={20} />
         </button>
         <button
           onClick={() => setShowArmory(true)}
@@ -268,6 +289,25 @@ function OrbitrApp() {
         isOpen={showTerminal}
         onClose={() => setShowTerminal(false)}
       />
+
+      <CommsPanel
+        isOpen={showComms}
+        onClose={() => setShowComms(false)}
+        holonet={holonet}
+      />
+
+      {/* Mobile-specific components */}
+      {isMobile && (
+        <MobileFlightDeck
+          onOpenStats={() => setShowTerminal(true)}
+          onOpenArmory={() => setShowArmory(true)}
+          onOpenComms={() => setShowComms(true)}
+          isLocked={isLocked}
+          status={holonet.status}
+        />
+      )}
+
+      <InstallBeacon />
 
       {/* Ambient Overlay for Warp Speed */}
       <div
