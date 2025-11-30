@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const ConsistencyGraph = () => {
+const ConsistencyGraph = ({ history = {} }) => {
     const [offset, setOffset] = useState(0); // 0 = current, 1 = previous month, etc.
 
-    // Mock Data Generator based on offset
+    // Data Generator based on offset and real history
     const generateData = (monthOffset) => {
         const data = [];
         const today = new Date();
         today.setMonth(today.getMonth() - monthOffset);
 
-        for (let i = 30; i >= 0; i--) {
+        for (let i = 29; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
+            const dateKey = d.toISOString().split('T')[0];
 
-            // Random consistency for demo
-            const val = Math.floor(Math.random() * 100);
+            const entry = history[dateKey];
+            const val = entry ? (entry.completedTasks || 0) : 0;
+
             data.push({
                 name: d.getDate(),
                 value: val,
-                target: 80
+                target: 3 // Target 3 tasks per day
             });
         }
         return data;
@@ -65,7 +67,7 @@ const ConsistencyGraph = () => {
                         contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
                         itemStyle={{ color: '#10b981' }}
                     />
-                    <ReferenceLine y={80} stroke="#f59e0b" strokeDasharray="3 3" />
+                    <ReferenceLine y={3} stroke="#f59e0b" strokeDasharray="3 3" />
                     <Area
                         type="monotone"
                         dataKey="value"

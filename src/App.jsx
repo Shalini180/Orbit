@@ -483,7 +483,7 @@ function OrbitrApp() {
         onClose={() => setShowTerminal(false)}
       >
         <div className="mt-8">
-          <ConsistencyGraph />
+          <ConsistencyGraph history={history} />
         </div>
       </DataTerminal>
 
