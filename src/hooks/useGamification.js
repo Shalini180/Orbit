@@ -51,12 +51,18 @@ export const useGamification = () => {
         return (progressXP / XP_PER_LEVEL) * 100;
     };
 
+    const resetProgress = () => {
+        setXpState({ totalXP: 0, level: 1 });
+        localStorage.removeItem(XP_STORAGE_KEY);
+    };
+
     return {
         xpState,
         addXP,
         levelUpEvent,
         clearLevelUpEvent,
         progress: getProgress(),
+        resetProgress,
         XP_TABLE
     };
 };

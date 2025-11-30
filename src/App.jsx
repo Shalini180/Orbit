@@ -5,13 +5,16 @@ import { useGamification } from './hooks/useGamification';
 import { useCaptainsLog } from './hooks/useCaptainsLog';
 import { useAudioSystem } from './hooks/useAudioSystem';
 import { useHyperdrive } from './hooks/useHyperdrive';
-import { ThemeProvider } from './hooks/useTheme';
+import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { useHolonet } from './hooks/useHolonet';
 import { useTouchOps } from './hooks/useTouchOps';
 import { useFleet } from './hooks/useFleet';
 import { useRadar } from './hooks/useRadar';
 import { useCortex } from './hooks/useCortex';
 import { useSubspace } from './hooks/useSubspace';
+import { useSeasons } from './hooks/useSeasons';
+import { useMedals } from './hooks/useMedals';
+import { usePrestige } from './hooks/usePrestige';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -36,9 +39,12 @@ import VoiceComms from './components/VoiceComms';
 import DockingBay from './components/DockingBay';
 import TimelineHorizon from './components/TimelineHorizon';
 import IncomingTransmission from './components/IncomingTransmission';
+import SeasonTrack from './components/SeasonTrack';
+import MedalCase from './components/MedalCase';
+import PrestigeCeremony from './components/PrestigeCeremony';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Volume2, VolumeX, Settings, Disc, Wifi, Users, Server } from 'lucide-react';
+import { Volume2, VolumeX, Settings, Disc, Wifi, Users, Server, Award } from 'lucide-react';
 
 // Simple Toast Component
 const Toast = ({ message, onComplete }) => (
@@ -57,9 +63,10 @@ const Toast = ({ message, onComplete }) => (
 function OrbitrApp() {
   const { state, actions } = useOrbitEngine();
   const velocity = useWarpDrive(state);
-  const { xpState, addXP, levelUpEvent, clearLevelUpEvent, progress, XP_TABLE } = useGamification();
+  const { xpState, addXP, levelUpEvent, clearLevelUpEvent, progress, resetProgress, XP_TABLE } = useGamification();
   const { history, logDailyActivity } = useCaptainsLog();
   const { isEnabled: audioEnabled, toggleAudio, playHover, playComplete, playWarp, playLevelUp } = useAudioSystem();
+  const { resetTheme } = useTheme();
 
   // Phase 4 Hooks
   const holonet = useHolonet(state, actions.setIdentity);
@@ -82,6 +89,27 @@ function OrbitrApp() {
     }, 2000);
   };
   const subspace = useSubspace(addXP, showToast);
+
+  // Phase 8 Hooks
+  const seasons = useSeasons(xpState.level);
+
+  // Mock stats for medals (in a real app, these would come from useCaptainsLog or similar)
+  const stats = {
+    streak: history.length > 0 ? history[history.length - 1].streak : 0, // Simplified
+    totalFocusHours: 0, // Placeholder
+    bountiesCompleted: 0, // Placeholder
+    prestigeCount: parseInt(localStorage.getItem('orbit_prestige_count') || '0')
+  };
+  const medals = useMedals(stats, showToast);
+
+  const handlePrestigeReset = () => {
+    resetProgress();
+    resetTheme();
+    actions.jettison(); // Reset tasks
+    setShowPrestigeCeremony(true);
+  };
+
+  const prestige = usePrestige(xpState.level, handlePrestigeReset);
 
   // Hyperdrive
   const hyperdrive = useHyperdrive((mode) => {
@@ -108,6 +136,8 @@ function OrbitrApp() {
   const [showComms, setShowComms] = useState(false);
   const [showAlliance, setShowAlliance] = useState(false);
   const [showDockingBay, setShowDockingBay] = useState(false);
+  const [showMedalCase, setShowMedalCase] = useState(false);
+  const [showPrestigeCeremony, setShowPrestigeCeremony] = useState(false);
 
   const isLocked = state.status !== 'IDLE';
 
@@ -128,6 +158,7 @@ function OrbitrApp() {
         setShowComms(false);
         setShowAlliance(false);
         setShowDockingBay(false);
+        setShowMedalCase(false);
         cortex.setShowBriefing(false);
       }
     };
@@ -241,6 +272,13 @@ function OrbitrApp() {
           <Server size={20} />
         </button>
         <button
+          onClick={() => setShowMedalCase(true)}
+          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
+          title="Medal Case"
+        >
+          <Award size={20} />
+        </button>
+        <button
           onClick={() => setShowArmory(true)}
           className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
           title="The Armory"
@@ -263,6 +301,15 @@ function OrbitrApp() {
             <Toast key={toast.id} message={toast.msg} />
           ))}
         </AnimatePresence>
+
+        {/* Season Track */}
+        {!isLocked && (
+          <SeasonTrack
+            season={seasons.currentSeason}
+            progress={seasons.seasonProgress}
+            daysRemaining={seasons.daysRemaining}
+          />
+        )}
 
         <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
           <IdentityLock
@@ -366,6 +413,13 @@ function OrbitrApp() {
         onToggle={subspace.toggleConnection}
       />
 
+      <MedalCase
+        isOpen={showMedalCase}
+        onClose={() => setShowMedalCase(false)}
+        medals={medals.medals}
+        unlockedIds={medals.unlockedMedals}
+      />
+
       <IncomingTransmission
         data={subspace.incomingTransmission}
         onClear={subspace.clearTransmission}
@@ -382,6 +436,25 @@ function OrbitrApp() {
         message={cortex.message}
         onInput={cortex.processInput}
       />
+
+      {/* Prestige Trigger (Hidden unless eligible) */}
+      {prestige.isPrestigeAvailable && !isLocked && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ scale: 1.1 }}
+          onClick={prestige.triggerPrestige}
+          className="fixed bottom-8 right-8 z-50 bg-yellow-500 text-black font-bold px-6 py-3 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.5)] uppercase tracking-widest"
+        >
+          INITIATE PRESTIGE
+        </motion.button>
+      )}
+
+      <AnimatePresence>
+        {showPrestigeCeremony && (
+          <PrestigeCeremony onComplete={() => setShowPrestigeCeremony(false)} />
+        )}
+      </AnimatePresence>
 
       {fleet.wing && (
         <>

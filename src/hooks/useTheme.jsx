@@ -70,8 +70,13 @@ export const ThemeProvider = ({ children, userLevel }) => {
         return false;
     };
 
+    const resetTheme = () => {
+        setCurrentTheme('VOID');
+        localStorage.setItem('orbitr_theme', 'VOID');
+    };
+
     return (
-        <ThemeContext.Provider value={{ currentTheme, unlockTheme, availableThemes: THEMES }}>
+        <ThemeContext.Provider value={{ currentTheme, unlockTheme, resetTheme, availableThemes: THEMES }}>
             {children}
         </ThemeContext.Provider>
     );
