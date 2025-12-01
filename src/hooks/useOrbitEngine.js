@@ -12,15 +12,27 @@ const INITIAL_STATE = {
     status: 'IDLE', // IDLE, LOCKED, WARP
 };
 
-export const useOrbitEngine = () => {
+export const useOrbitEngine = (dimensionId = 'EARTH-616') => {
+    const storageKey = `orbitr_core_state_v1_${dimensionId}`;
+
     const [state, setState] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(storageKey);
         return saved ? JSON.parse(saved) : INITIAL_STATE;
     });
 
+    // Reset state when dimension changes if not found in storage
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }, [state]);
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+            setState(JSON.parse(saved));
+        } else {
+            setState(INITIAL_STATE);
+        }
+    }, [dimensionId, storageKey]);
+
+    useEffect(() => {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+    }, [state, storageKey]);
 
     const setIdentity = (identity) => {
         setState(prev => ({ ...prev, identity }));

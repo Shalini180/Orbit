@@ -1,12 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-comic-bg: #ffffff;
+    --color-comic-primary: #06b6d4;
+    /* Cyan 500 */
+    --color-comic-accent: #d946ef;
+    /* Fuchsia 500 */
+    --color-comic-yellow: #facc15;
+    /* Yellow 400 */
+    --color-comic-black: #000000;
+    --color-comic-text: #000000;
+
+    /* Villain Palette */
+    --color-villain-primary: #84cc16;
+    /* Lime 500 */
+    --color-villain-accent: #a855f7;
+    /* Purple 500 */
+    --color-villain-dark: #3b0764;
+    /* Purple 950 */
+  }
+
+  @keyframes shake {
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+      transform: translateX(-5px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+      transform: translateX(5px);
+    }
+  }
+
+  @keyframes flash {
+
+    0%,
+    100% {
+      filter: brightness(1);
+    }
+
+    50% {
+      filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5);
+    }
+  }
+
+  .animate-shake {
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+  }
+
+  .animate-flash {
+    animation: flash 0.2s ease-in-out;
+  }
+
   body {
-    @apply bg-slate-900 text-cyan-400 overflow-hidden;
-    font-family: 'Inter', sans-serif;
+    @apply bg-white text-black overflow-hidden;
+    font-family: 'Comic Neue', 'Inter', sans-serif;
   }
 }
 
-/* Custom scrollbar if needed, or other global resets */
+@layer components {
+  .comic-border {
+    @apply border-4 border-black rounded-xl;
+    box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  }
+
+  .comic-button {
+    @apply comic-border bg-yellow-400 hover:bg-yellow-300 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all font-bold uppercase tracking-wider px-6 py-3;
+  }
+
+  .comic-panel {
+    @apply comic-border bg-white p-4 relative overflow-hidden;
+  }
+
+  .comic-text {
+    font-family: 'Bangers', cursive;
+    letter-spacing: 1px;
+  }
+}

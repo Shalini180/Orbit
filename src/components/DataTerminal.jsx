@@ -77,6 +77,25 @@ const DataTerminal = ({ isOpen, onClose }) => {
                                 />
                             </button>
 
+                            <div className="border-t border-cyan-500/30 my-4 pt-4">
+                                <div className="text-xs text-cyan-500 mb-2 opacity-70">DEBUG / DEMO PROTOCOLS</div>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm('INITIATE AUTO-PILOT SIMULATION?')) {
+                                            onStartDemo();
+                                            onClose();
+                                        }
+                                    }}
+                                    className="w-full flex items-center gap-4 p-4 border border-cyan-500/30 hover:bg-cyan-500/10 text-cyan-400 hover:text-cyan-300 transition-all group"
+                                >
+                                    <AlertTriangle size={20} />
+                                    <div className="text-left">
+                                        <div className="font-bold">RUN_SIMULATION</div>
+                                        <div className="text-xs opacity-70">Execute full system diagnostics demo</div>
+                                    </div>
+                                </button>
+                            </div>
+
                             <div className="border-t border-red-500/30 my-4 pt-4">
                                 <button
                                     onClick={() => {
@@ -110,7 +129,8 @@ const DataTerminal = ({ isOpen, onClose }) => {
 
 DataTerminal.propTypes = {
     isOpen: PropTypes.bool.isRequired,
-    onClose: PropTypes.func.isRequired
+    onClose: PropTypes.func.isRequired,
+    onStartDemo: PropTypes.func
 };
 
 export default DataTerminal;

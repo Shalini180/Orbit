@@ -18,6 +18,28 @@ import { usePrestige } from './hooks/usePrestige';
 import { useNotifications } from './hooks/useNotifications';
 import { useDamage } from './hooks/useDamage';
 import { useJournal } from './hooks/useJournal';
+import { useAutoPilot } from './hooks/useAutoPilot';
+import { useVillains } from './hooks/useVillains';
+import { useCombat } from './hooks/useCombat';
+import { useCredits } from './hooks/useCredits';
+import { useLair } from './hooks/useLair';
+import { useArchive } from './hooks/useArchive';
+import { useComicGen } from './hooks/useComicGen';
+import { useDimensions } from './hooks/useDimensions';
+import { useGenetics } from './hooks/useGenetics';
+import { usePowers } from './hooks/usePowers';
+import { useCreator } from './hooks/useCreator';
+import { useNewsstand } from './hooks/useNewsstand';
+import { useMentorship } from './hooks/useMentorship';
+import { useCurriculum } from './hooks/useCurriculum';
+import { useHeroLicense } from './hooks/useHeroLicense';
+import { useEconomy } from './hooks/useEconomy';
+
+import ComicPage from './components/ComicPage';
+import SplashIntro from './components/SplashIntro';
+
+import DimensionalRift from './components/DimensionalRift';
+import WorldAnchor from './components/WorldAnchor';
 
 import StarfieldCanvas from './components/visuals/StarfieldCanvas';
 import IdentityLock from './components/IdentityLock';
@@ -68,12 +90,18 @@ const Toast = ({ message, onComplete }) => (
 );
 
 function OrbitrApp() {
-  const { state, actions } = useOrbitEngine();
+  // Phase 13 Hooks (Must be first to provide context)
+  const { dimensions, activeDimension, activeDimensionId, switchDimension } = useDimensions();
+
+  // Core Engine now depends on activeDimensionId
+  const { state, actions } = useOrbitEngine(activeDimensionId);
+
   const velocity = useWarpDrive(state);
   const { xpState, addXP, levelUpEvent, clearLevelUpEvent, progress, resetProgress, XP_TABLE } = useGamification();
   const { history, logDailyActivity } = useCaptainsLog();
   const { isEnabled: audioEnabled, toggleAudio, playHover, playComplete, playWarp, playLevelUp } = useAudioSystem();
-  const { resetTheme } = useTheme();
+  const { currentTheme, availableThemes, resetTheme } = useTheme();
+  const theme = availableThemes[currentTheme];
 
   // Phase 4 Hooks
   const holonet = useHolonet(state, actions.setIdentity);
@@ -96,6 +124,8 @@ function OrbitrApp() {
     }, 2000);
   };
   const subspace = useSubspace(addXP, showToast);
+
+
 
   // Phase 8 Hooks
   const seasons = useSeasons(xpState.level);
@@ -157,6 +187,26 @@ function OrbitrApp() {
   const [journalMode, setJournalMode] = useState('LAUNCH');
 
   const isLocked = state.status !== 'IDLE';
+
+  // Auto-Pilot Demo
+  const autoPilot = useAutoPilot({
+    addXP,
+    setShowArmory,
+    setShowTerminal,
+    setShowJournal,
+    completeTask: () => {
+      // Find first incomplete task
+      if (!state.heavyLift.completed) {
+        actions.setHeavyLift({ ...state.heavyLift, completed: true });
+      } else {
+        const firstIncomplete = state.thrusters.find(t => !t.completed);
+        if (firstIncomplete) {
+          actions.setThruster(firstIncomplete.id, { ...firstIncomplete, completed: true });
+        }
+      }
+    },
+    showToast
+  });
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -261,341 +311,122 @@ function OrbitrApp() {
     }
   }, [isLocked, notifications]);
 
-  return (
-    <div className={`min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4 transition-colors duration-1000 pb-24 md:pb-4 ${damage.damageLevel === 'CRITICAL' ? 'bg-red-950 animate-pulse' : 'bg-[var(--color-bg)]'
-      }`}>
+  // Phase 10 Hooks
+  const { villains, activeVillain, damageVillain, switchVillain } = useVillains();
+  const { registerHit } = useCombat(damageVillain, addXP, showToast);
 
+  // Phase 11 Hooks
+  const { credits, addCredits, spendCredits } = useCredits();
+  const { lairState, cleanliness, placeItem, moveItem, removeItem, unlockItem, setAmbiance } = useLair(history);
+
+  // Phase 12 Hooks
+  const { archive, saveIssue, getIssue } = useArchive();
+  const { generateComic } = useComicGen();
+  // Phase 14 Hooks
+  const { attributes, processTask, addTagMapping, tagMap } = useGenetics();
+  const { activePowers, hasPower } = usePowers(attributes);
+
+  // Phase 17: The Academy
+  const mentorship = useMentorship(xpState.level, attributes ? (attributes.MIND > 5 ? 'MIND' : 'MIGHT') : 'MIGHT');
+  const curriculum = useCurriculum(mentorship.status === 'MATCHED');
+
+  // Phase 18: The Treasury
+  const license = useHeroLicense();
+  const economyState = useEconomy(credits, () => { });
+
+  // Phase 15 Hooks
+  const { drafts, published, createDraft, updateDraft, deleteDraft, publishContent } = useCreator();
+  const { feed, subscriptions, subscribe, unsubscribe, isSubscribed } = useNewsstand();
+
+  // Enhanced Task Completion Wrapper
+  const handleTaskComplete = (type, id, text) => {
+    // Process DNA
+    processTask(text);
+
+    // Original Logic
+    if (type === 'HEAVY_LIFT') {
+      handleHeavyLiftToggle();
+    } else {
+      handleThrusterToggle(id);
+    }
+  };
+
+  return (
+    <>
       <AnimatePresence>
         {isBooting && (
-          <BootSequence
-            onComplete={() => setIsBooting(false)}
-            themeName={theme.name}
-          />
+          <SplashIntro onComplete={() => setIsBooting(false)} />
         )}
       </AnimatePresence>
 
-      {/* Screen Shake Effect */}
-      <AnimatePresence>
-        {damage.shake && (
-          <motion.div
-            className="absolute inset-0 z-50 pointer-events-none border-4 border-red-500"
-            initial={{ x: -10 }}
-            animate={{ x: 10 }}
-            exit={{ x: 0 }}
-            transition={{ repeat: 5, duration: 0.05 }}
+      {!isBooting && (
+        <>
+          <ComicPage
+            state={state}
+            actions={{
+              ...actions,
+              completeTask: handleTaskComplete // Override with wrapped function
+            }}
+            history={history}
+            addXP={addXP}
+            showToast={showToast}
+            villains={villains}
+            activeVillain={activeVillain}
+            onSwitchVillain={switchVillain}
+            onCombatHit={registerHit}
+            // Phase 11 Props
+            credits={credits}
+            addCredits={addCredits}
+            spendCredits={spendCredits}
+            lairState={lairState}
+            cleanliness={cleanliness}
+            placeItem={placeItem}
+            moveItem={moveItem}
+            removeItem={removeItem}
+            unlockItem={unlockItem}
+            medals={medals.medals.filter(m => medals.unlockedMedals.includes(m.id))}
+            // Phase 17 Props
+            mentorship={mentorship}
+            curriculum={curriculum}
+            // Phase 18 Props
+            license={license}
+            economy={economyState}
+            // Phase 12 Props
+            archive={archive}
+            saveIssue={saveIssue}
+            generateComic={generateComic}
+            xpState={xpState} // Needed for comic stats
+            // Phase 13 Props
+            activeDimension={activeDimension}
+            // Phase 14 Props
+            attributes={attributes}
+            activePowers={activePowers}
+            addTagMapping={addTagMapping}
+            tagMap={tagMap}
+            // Phase 15 Props
+            creator={{ drafts, published, createDraft, updateDraft, deleteDraft, publishContent }}
+            newsstand={{ feed, subscriptions, subscribe, unsubscribe, isSubscribed }}
           />
-        )}
-      </AnimatePresence>
 
-      {/* Visual Engine */}
-      <StarfieldCanvas velocity={hyperdrive.isActive ? 5 : velocity} />
+          <DimensionalRift
+            dimensions={dimensions}
+            activeDimensionId={activeDimensionId}
+            onSwitch={switchDimension}
+          />
 
-      {/* Top Controls (Desktop) */}
-      <div className="fixed top-4 left-4 z-30 hidden md:flex gap-4">
-        <button
-          onClick={toggleAudio}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="Toggle Audio"
-        >
-          {audioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-        </button>
-        <button
-          onClick={() => setShowTerminal(true)}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="Data Terminal"
-        >
-          <Disc size={20} />
-        </button>
-        <button
-          onClick={() => {
-            setJournalMode('LAUNCH');
-            setShowJournal(true);
-          }}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="Captain's Log"
-        >
-          <FileText size={20} />
-        </button>
-        <button
-          onClick={() => setShowComms(true)}
-          className={`transition-colors ${holonet.status === 'SYNCED' ? 'text-green-500' :
-            holonet.status === 'ERROR' ? 'text-red-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
-            }`}
-          title="Comms Panel"
-        >
-          <Wifi size={20} />
-        </button>
-        <button
-          onClick={() => setShowAlliance(true)}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="Alliance Hall"
-        >
-          <Users size={20} />
-        </button>
-        <button
-          onClick={() => setShowDockingBay(true)}
-          className={`transition-colors ${Object.values(subspace.connections).some(Boolean) ? 'text-green-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
-            }`}
-          title="The Docking Bay"
-        >
-          <Server size={20} />
-        </button>
-        <button
-          onClick={() => setShowMedalCase(true)}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="Medal Case"
-        >
-          <Award size={20} />
-        </button>
-        <button
-          onClick={() => setShowArmory(true)}
-          className="text-slate-500 hover:text-[var(--color-primary)] transition-colors"
-          title="The Armory"
-        >
-          <Settings size={20} />
-        </button>
-        <button
-          onClick={notifications.requestPermission}
-          className={`transition-colors ${notifications.permission === 'granted' ? 'text-green-500' : 'text-slate-500 hover:text-[var(--color-primary)]'
-            }`}
-          title="Notifications"
-        >
-          <Bell size={20} />
-        </button>
-      </div>
+          <WorldAnchor activeDimension={activeDimension} />
+        </>
+      )}
 
-      {/* HUD Layer */}
-      <XPHUD
-        level={xpState.level}
-        totalXP={xpState.totalXP}
-        progress={progress}
-        isLocked={isLocked}
-      />
-
-      <div className="z-10 w-full max-w-4xl flex flex-col items-center relative">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         <AnimatePresence>
           {toasts.map(toast => (
             <Toast key={toast.id} message={toast.msg} />
           ))}
         </AnimatePresence>
-
-        {/* Season Track */}
-        {!isLocked && (
-          <SeasonTrack
-            season={seasons.currentSeason}
-            progress={seasons.seasonProgress}
-            daysRemaining={seasons.daysRemaining}
-          />
-        )}
-
-        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
-          <IdentityLock
-            identity={state.identity}
-            setIdentity={actions.setIdentity}
-            lockIdentity={actions.lockIdentity}
-            isLocked={isLocked}
-          />
-        </div>
-
-        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-20 blur-sm transition-all' : 'transition-all'}>
-          <div className="relative w-full">
-            <SingularityGoal
-              goal={state.heavyLift}
-              setGoal={actions.setHeavyLift}
-              toggleGoal={handleHeavyLiftToggle}
-              isLocked={isLocked}
-            />
-            {!isLocked && (
-              <div className="absolute right-[-40px] top-1/2 -translate-y-1/2">
-                <VoiceComms onInput={handleVoiceInput} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {isLocked && !hyperdrive.isActive && !state.heavyLift.completed && (
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={hyperdrive.actions.start}
-            className="mb-8 px-6 py-2 rounded-full border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-black font-mono tracking-widest uppercase text-sm transition-all"
-          >
-            Engage Hyperdrive
-          </motion.button>
-        )}
-
-        <div onMouseEnter={playHover} className={hyperdrive.isActive ? 'opacity-0 pointer-events-none transition-all' : 'transition-all'}>
-          <ThrusterBank
-            thrusters={state.thrusters}
-            setThruster={actions.setThruster}
-            toggleThruster={handleThrusterToggle}
-            isLocked={isLocked}
-          />
-        </div>
       </div>
-
-      <div className={hyperdrive.isActive ? 'opacity-0 transition-all' : 'transition-all'}>
-        <MissionLog history={history} isLocked={isLocked} />
-      </div>
-
-      <div className="relative" onMouseEnter={() => setShowImpact(true)} onMouseLeave={() => setShowImpact(false)}>
-        <ImpactPredictor
-          isOpen={showImpact && isLocked}
-          consequences={[
-            "Break 12-day Streak",
-            "Reduce Hull Integrity by 15%",
-            "Lock 'Veteran' Badge for 7 days"
-          ]}
-        />
-        <JettisonControl
-          onJettison={() => {
-            damage.triggerShake();
-            actions.jettison();
-          }}
-          isLocked={isLocked}
-        />
-      </div>
-
-      <LevelUpModal
-        level={levelUpEvent}
-        onClose={clearLevelUpEvent}
-      />
-
-      <HyperdriveHUD
-        isActive={hyperdrive.isActive}
-        mode={hyperdrive.mode}
-        timeLeft={hyperdrive.timeLeft}
-        progress={hyperdrive.progress}
-        onStart={hyperdrive.actions.start}
-        onPause={hyperdrive.actions.pause}
-        onStop={hyperdrive.actions.stop}
-        activeTask={state.heavyLift.text}
-      />
-
-      <TheArmory
-        isOpen={showArmory}
-        onClose={() => setShowArmory(false)}
-        userLevel={xpState.level}
-      />
-
-      <DataTerminal
-        isOpen={showTerminal}
-        onClose={() => setShowTerminal(false)}
-      >
-        <div className="mt-8">
-          <ConsistencyGraph history={history} />
-        </div>
-      </DataTerminal>
-
-      <LogTerminal
-        isOpen={showJournal}
-        onClose={() => setShowJournal(false)}
-        mode={journalMode}
-        template={journal.TEMPLATES[journalMode]}
-        onSave={handleJournalSave}
-        onConvertToTask={handleConvertToTask}
-      />
-
-      <CommsPanel
-        isOpen={showComms}
-        onClose={() => setShowComms(false)}
-        holonet={holonet}
-      />
-
-      <AllianceHall
-        isOpen={showAlliance}
-        onClose={() => setShowAlliance(false)}
-        fleet={fleet}
-        user={holonet.user}
-      />
-
-      <DockingBay
-        isOpen={showDockingBay}
-        onClose={() => setShowDockingBay(false)}
-        connections={subspace.connections}
-        onToggle={subspace.toggleConnection}
-      />
-
-      <MedalCase
-        isOpen={showMedalCase}
-        onClose={() => setShowMedalCase(false)}
-        medals={medals.medals}
-        unlockedIds={medals.unlockedMedals}
-      />
-
-      <IncomingTransmission
-        data={subspace.incomingTransmission}
-        onClear={subspace.clearTransmission}
-      />
-
-      <TacticalBriefing
-        isOpen={cortex.showBriefing}
-        onClose={() => cortex.setShowBriefing(false)}
-        content={cortex.weeklyReview}
-      />
-
-      <NavCore
-        status={cortex.status}
-        message={cortex.message}
-        onInput={cortex.processInput}
-      />
-
-      {/* Prestige Trigger (Hidden unless eligible) */}
-      {prestige.isPrestigeAvailable && !isLocked && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          whileHover={{ scale: 1.1 }}
-          onClick={prestige.triggerPrestige}
-          className="fixed bottom-8 right-8 z-50 bg-yellow-500 text-black font-bold px-6 py-3 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.5)] uppercase tracking-widest"
-        >
-          INITIATE PRESTIGE
-        </motion.button>
-      )}
-
-      <AnimatePresence>
-        {showPrestigeCeremony && (
-          <PrestigeCeremony onComplete={() => setShowPrestigeCeremony(false)} />
-        )}
-      </AnimatePresence>
-
-      {fleet.wing && (
-        <>
-          <RadarScope
-            squadStatus={radar.squadStatus}
-            onPing={handlePing}
-          />
-          <WingComms
-            feed={[]} // Placeholder for now
-          />
-        </>
-      )}
-
-      {/* Timeline Horizon (Desktop Footer) */}
-      {!isMobile && (
-        <TimelineHorizon events={subspace.timelineEvents} />
-      )}
-
-      {isMobile && (
-        <MobileFlightDeck
-          onOpenStats={() => setShowTerminal(true)}
-          onOpenArmory={() => setShowArmory(true)}
-          onOpenComms={() => setShowComms(true)}
-          isLocked={isLocked}
-          status={holonet.status}
-        />
-      )}
-
-      <InstallBeacon />
-
-      <div
-        className={`
-          fixed inset-0 pointer-events-none transition-opacity duration-1000
-          bg-gradient-to-b from-[var(--color-accent)]/10 to-transparent
-          ${state.status === 'WARP' ? 'opacity-100' : 'opacity-0'}
-        `}
-      />
-    </div>
+    </>
   );
 }
 

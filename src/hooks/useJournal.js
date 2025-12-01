@@ -3,20 +3,32 @@ import { useState, useEffect } from 'react';
 const JOURNAL_STORAGE_KEY = 'orbitr_journal_v1';
 
 const TEMPLATES = {
-    LAUNCH: {
-        title: 'LAUNCH SEQUENCE',
+    MORNING: {
+        id: 'MORNING',
+        title: 'EPISODE START',
         prompts: [
-            { id: 'focus', text: 'Today is about', placeholder: 'FOCUS KEYWORD' },
-            { id: 'task', text: 'I will accomplish', placeholder: 'MISSION OBJECTIVE' },
-            { id: 'time', text: 'by', placeholder: 'TIME (e.g. 1400)' }
+            { id: 'hero', label: 'THE HERO WAKES UP...', placeholder: 'What is the mission today?' },
+            { id: 'villain', label: 'THE VILLAIN ARRIVES...', placeholder: 'What is the distraction?' },
+            { id: 'power', label: 'SUPERPOWER ACTIVATED...', placeholder: 'What is your focus?' }
         ]
     },
-    DEBRIEF: {
-        title: 'MISSION DEBRIEF',
+    EVENING: {
+        id: 'EVENING',
+        title: 'TO BE CONTINUED...',
         prompts: [
-            { id: 'report', text: 'Mission Report:', placeholder: 'STATUS' },
-            { id: 'efficiency', text: 'Efficiency Rating (1-10):', placeholder: 'RATING' },
-            { id: 'reflection', text: 'Analysis:', placeholder: 'ONE SENTENCE REFLECTION' }
+            { id: 'climax', label: 'THE CLIMAX...', placeholder: 'What was the hardest part?' },
+            { id: 'victory', label: 'THE VICTORY...', placeholder: 'What did we achieve?' },
+            { id: 'sequel', label: 'NEXT EPISODE...', placeholder: 'Plan for tomorrow?' }
+        ]
+    },
+    // Keep legacy templates for backward compatibility if needed, or map them
+    LAUNCH: {
+        id: 'LAUNCH',
+        title: 'LAUNCH SEQUENCE',
+        prompts: [
+            { id: 'intent', label: 'INTENTION SETTING', placeholder: 'Today is about...' },
+            { id: 'tactical', label: 'TACTICAL PLAN', placeholder: 'I will accomplish...' },
+            { id: 'fuel', label: 'FUEL CHECK', placeholder: 'Energy level (1-10)...' }
         ]
     }
 };
@@ -35,7 +47,7 @@ export const useJournal = () => {
         const newEntry = {
             id: Date.now(),
             date: new Date().toISOString(),
-            type, // 'LAUNCH' or 'DEBRIEF'
+            type,
             data
         };
         setEntries(prev => [newEntry, ...prev]);
